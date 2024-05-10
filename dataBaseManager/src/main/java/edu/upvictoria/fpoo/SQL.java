@@ -5,11 +5,15 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.ArrayList;
 import java.util.List;
+import java.io.BufferedWriter;
+import java.io.FileWriter;
+import java.io.BufferedReader;
+import java.io.FileReader;
+import java.io.IOException;
 
 public class SQL {
 
     private String path = null;
-    //private File reservedCSV = new File("reserved.csv");
     private final List<String> reservedWords = new ArrayList<>();
 
     public void reader(String sentence)  {
@@ -28,7 +32,7 @@ public class SQL {
         }
 
         words = parseSentence(sentence);
-        System.out.println(words);
+        //System.out.println(words);
 
         if (words.isEmpty()) {
             System.out.println("No sentence found");
@@ -59,8 +63,13 @@ public class SQL {
             insertINTO(words);
         }
 
+        if (words.get(0).toUpperCase().equals("DROP") && words.get(1).toUpperCase().equals("TABLE") ) {
+            dropTable(words);
+        }
+
 
     }
+
 
     private void usePath(String path) {
         File carpeta = new File(path);
@@ -87,7 +96,7 @@ public class SQL {
         return tokens;
     }
 
-    private boolean crearArchivo(String nombre) {
+    private void makeCSV(String nombre) {
 
         try {
             File archivo = new File(path + "/" + nombre + ".csv");
@@ -96,15 +105,13 @@ public class SQL {
                 archivo.createNewFile();
             }else{
                 System.out.println("Tabla " + nombre + " ya existe");
+                return;
             }
-
-            return true;
 
         } catch (Exception e) {
             System.out.println(e.getMessage() + "\n");
         }
 
-        return false;
     }
 
     private void showTables() {
@@ -133,7 +140,20 @@ public class SQL {
         String csvName;
 
         if (!words.get(3).equals("(")) {
-            System.out.println("Bad Sentence");
+            System.out.println("Bad Sentence: Missing parenthesis");
+            return;
+        }
+
+        int endIndex = -1;
+        for (int i = 3; i < words.size(); i++) {
+            if (words.get(i).equals(")") && words.get(i+1).equals(";")) {
+                endIndex = i;
+                break;
+            }
+        }
+
+        if (endIndex == -1) {
+            System.out.println("Bad Sentence: Missing closing parenthesis");
             return;
         }
 
@@ -144,44 +164,153 @@ public class SQL {
             return;
         }
 
-       boolean bol = crearArchivo(csvName);
+        makeCSV(csvName);
 
-       if (!bol){
-           System.out.println("La Tabla NO pudo ser creada");
-           return;
-       }
+        StringBuilder columnNamesBuilder = new StringBuilder();
+        boolean isFirstColumn = true;
+        boolean foundFirstParenthesis = false;
+        for (int i = 3; i < endIndex; i++) {
+            String word = words.get(i);
+            if (word.equals("(")) {
+                foundFirstParenthesis = true;
+            } else if (word.equals(",")) {
+                if (foundFirstParenthesis) {
 
-       for (String word : words) {
+                    if (!isFirstColumn) {
+                        columnNamesBuilder.append(", ");
+                    }
+                    String columnName = words.get(i+1);
+                    columnNamesBuilder.append(columnName);
+                    isFirstColumn = false;
+                }
+            } else if (foundFirstParenthesis && isFirstColumn) {
+                columnNamesBuilder.append(word);
+                isFirstColumn = false;
+            }
+        }
 
-       }
+        String columnNames = columnNamesBuilder.toString();
+
+        String[] columnNamesArray = columnNames.split(", ");
+        for (String columnName : columnNamesArray) {
+            if (reservedWords.contains(columnName.toUpperCase())) {
+                System.out.println("Error: The Column '" + columnName + "' is a reserved word.");
+                return;
+            }
+        }
+
+        if (writeToCSV(columnNames,csvName,true)){
+            System.out.println("Table " + csvName + " created");
+        }
 
     }
 
-    //TODO: buscar ( en la lista, que el siguiente i lo tome como el nombre para ingresar y la , que cambia hasta que encuentre un ;
+    private boolean writeToCSV(String columnNames, String csvName, boolean isCreated) {
 
+        if (isCreated){
+            try (BufferedWriter writer = new BufferedWriter(new FileWriter(path + "/" + csvName + ".csv",true))) {
+                writer.append(columnNames);
+                return true;
+            } catch (IOException e) {
+                System.err.println("Error writing to CSV file: " + e.getMessage());
+                return false;
+            }
+        }else {
+            try (BufferedWriter writer = new BufferedWriter(new FileWriter(path + "/" + csvName + ".csv", true))) {
+                writer.newLine();
+                writer.write(columnNames);
+                return true;
+            } catch (IOException e) {
+                System.err.println("Error appending line to CSV file: " + e.getMessage());
+                return false;
+            }
+        }
+
+    }
+
+    private void dropTable(List<String> words) {
+
+        if (words.size()>4){
+            System.out.println("Error: Bad Syntax");
+            return;
+        }
+        String nombre = words.get(2).toLowerCase();
+
+        try {
+            File archivo = new File(path + "/" + nombre + ".csv");
+
+            if (!archivo.exists()) {
+                System.out.println("Table does not exist");
+            }else{
+                archivo.delete();
+                System.out.println("Table deleted correctly");
+            }
+
+        } catch (Exception e) {
+            System.out.println(e.getMessage() + "\n");
+        }
+
+    } // use /home/wallez/Documents/iti-271215-poo-practica-1-ElWalleZ/dataBaseManager/Tablas
+    // insert into snicker values("valor","valor2",123);
 
     private void insertINTO(List<String> words) {
 
-        if (!words.get(3).toUpperCase().equals("VALUES") && !words.get(4).equals("(")) {
-            System.out.println("Bad Sentence");
+        if (!words.get(3).toUpperCase().equals("VALUES") || !words.get(4).equals("(")) {
+            System.out.println("Error: Bad Syntax");
             return;
         }
 
         String csvName = words.get(2).toLowerCase();
 
-        System.out.println(path + "/" +csvName + ".csv");
-
-
         File carpeta = new File(path + "/" +csvName + ".csv");
 
         if (!carpeta.exists()) {
             System.out.println("Table " + csvName + " does not exist");
+            return;
         }
 
-        //TODO:INSERTAR LOS VALORES, CHECANDO QUE ESTEN TODOS LOS VALORES, SINO NO LO DEJE
+        int valuesStartIndex = 5;
+        int valuesEndIndex = words.size() - 2;
+        List<String> valores = words.subList(valuesStartIndex, valuesEndIndex);
 
+        StringBuilder concatenatedValues = new StringBuilder();
+        for (String valor : valores) {
+            concatenatedValues.append(valor);
+        }
 
+        int countedValues = countValues(concatenatedValues.toString());
+
+        int numExpected = 0;
+        try (BufferedReader reader = new BufferedReader(new FileReader(carpeta))) {
+            String primeraLinea = reader.readLine();
+            String[] columnas = primeraLinea.split(",");
+            numExpected = columnas.length;
+        } catch (IOException e) {
+            System.err.println("Error reading CSV file: " + e.getMessage());
+            return;
+        }
+
+        if (countedValues != numExpected) {
+            System.out.println("Error: Number of values provided does not match the number of columns.");
+            return;
+        }
+
+        writeToCSV(concatenatedValues.toString(),csvName,false);
     }
+
+    private int countValues(String concatenatedValues) {
+        int count = 0;
+
+        Pattern pattern = Pattern.compile("\"[^\"]*\"|[^,]+");
+        Matcher matcher = pattern.matcher(concatenatedValues);
+
+        while (matcher.find()) {
+            count++;
+        }
+
+        return count;
+    }
+
 
     private void addReservedWords() {
         reservedWords.add("ABORT");
