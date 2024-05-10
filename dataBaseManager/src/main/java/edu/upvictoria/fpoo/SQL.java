@@ -1,15 +1,10 @@
 package edu.upvictoria.fpoo;
 
-import java.io.File;
+import java.io.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.ArrayList;
 import java.util.List;
-import java.io.BufferedWriter;
-import java.io.FileWriter;
-import java.io.BufferedReader;
-import java.io.FileReader;
-import java.io.IOException;
 
 public class SQL {
 
@@ -21,7 +16,6 @@ public class SQL {
         List<String> words;
 
         addReservedWords();
-        //System.out.println(sentence);
 
         Pattern usePattern = Pattern.compile("^USE\\s+(.+)",Pattern.CASE_INSENSITIVE);
         Matcher tokenMatcher = usePattern.matcher(sentence);
@@ -32,7 +26,6 @@ public class SQL {
         }
 
         words = parseSentence(sentence);
-        //System.out.println(words);
 
         if (words.isEmpty()) {
             System.out.println("No sentence found");
@@ -65,11 +58,11 @@ public class SQL {
 
         if (words.get(0).toUpperCase().equals("DROP") && words.get(1).toUpperCase().equals("TABLE") ) {
             dropTable(words);
+        }else {
+            System.out.println("Check Syntax: Couldn't understand sentence");
         }
 
-
     }
-
 
     private void usePath(String path) {
         File carpeta = new File(path);
@@ -88,11 +81,9 @@ public class SQL {
         Pattern tokenPattern = Pattern.compile("\\s+\\$\\w+\\$|\\w+|\\*|\\(|\\)|,|;");
         Matcher tokenMatcher = tokenPattern.matcher(sentence);
 
-
         while (tokenMatcher.find()) {
             tokens.add(tokenMatcher.group());
         }
-
         return tokens;
     }
 
@@ -242,16 +233,31 @@ public class SQL {
             if (!archivo.exists()) {
                 System.out.println("Table does not exist");
             }else{
-                archivo.delete();
-                System.out.println("Table deleted correctly");
-            }
+                System.out.print("Do you want to drop table " + nombre + " (Y/N):");
+                String selection = bufferReader();
 
+                if (selection == (null)) {
+                    System.out.println("Wrong selection, no table will be dropped");
+                    return;
+                }
+
+                selection = selection.toUpperCase();
+
+                if (selection.equals("Y")) {
+                    archivo.delete();
+                    System.out.println("Table deleted correctly");
+                }else if (selection.equals("N")) {
+                    System.out.println(nombre + "was not dropped");
+                }else {
+                    System.out.println("Wrong selection, " + nombre + " will not be dropped");
+                }
+
+            }
         } catch (Exception e) {
             System.out.println(e.getMessage() + "\n");
         }
 
-    } // use /home/wallez/Documents/iti-271215-poo-practica-1-ElWalleZ/dataBaseManager/Tablas
-    // insert into snicker values("valor","valor2",123);
+    }
 
     private void insertINTO(List<String> words) {
 
@@ -295,8 +301,26 @@ public class SQL {
             return;
         }
 
-        writeToCSV(concatenatedValues.toString(),csvName,false);
+        boolean bol = writeToCSV(concatenatedValues.toString(),csvName,false);
+
+        if (bol){
+            System.out.println("Values inserted correctly");
+        }
     }
+
+    private String bufferReader(){
+        String line = "";
+        BufferedReader br = new BufferedReader(new InputStreamReader(System.in));
+        try {
+            line = br.readLine();
+            return line;
+        } catch (IOException e) {
+            System.err.println("Ha ocurrido un error al leer el entrada");
+            return null;
+        }
+    }
+
+
 
     private int countValues(String concatenatedValues) {
         int count = 0;
